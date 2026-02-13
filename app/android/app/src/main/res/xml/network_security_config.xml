@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 允许所有 HTTPS 请求，信任系统 CA 证书 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- 针对你的 API 域名的特殊配置 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">api.misskey.site</domain>
+        <domain includeSubdomains="true">misskey.site</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
