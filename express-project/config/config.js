@@ -14,12 +14,39 @@ require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 // 动态获取服务器基础URL
 // 优先使用环境变量，否则根据请求动态生成
 const getBaseUrl = (req) => {
+  // 优先使用环境变量（最安全）
   if (process.env.LOCAL_BASE_URL) {
     return process.env.LOCAL_BASE_URL;
   }
   if (req) {
+    // 从请求头获取协议和主机
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
+    let host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
+    
+    // 安全检查：只允许有效的主机名格式（防止 Host Header 注入）
+    // 移除端口号后检查是否为有效域名
+    const hostname = host.split(':')[0];
+    
+    // 白名单：允许的主机名模式
+    const allowedPatterns = [
+      /^localhost$/i,
+      /^127\.0\.0\.1$/i,
+      /^192\.168\.\d{1,3}\.\d{1,3}$/,  // 局域网 IP
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,  // 内网 IP
+      /^[\w-]+\.misskey\.site$/i,  // 你的域名
+      /^api\.misskey\.site$/i,  // API 域名
+      /^[\w-]+\.(com|cn|net|org|io)$/i  // 常见顶级域名
+    ];
+    
+    // 检查主机名是否在白名单中
+    const isAllowed = allowedPatterns.some(pattern => pattern.test(hostname));
+    
+    if (!isAllowed) {
+      // 如果不在白名单中，使用默认值
+      console.warn(`⚠️ 可疑的主机头被拒绝: ${hostname}`);
+      return 'http://localhost:3001';
+    }
+    
     return `${protocol}://${host}`;
   }
   return 'http://localhost:3001';

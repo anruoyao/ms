@@ -149,7 +149,7 @@ router.post('/multiple', authenticateToken, upload.array('files', 9), async (req
         code: RESPONSE_CODES.SUCCESS,
         message: `上传完成，成功 ${uploadResults.length} 个${errors.length > 0 ? `，失败 ${errors.length} 个` : ''}`,
         data: {
-          success: uploadResults,
+          uploaded: uploadResults,
           errors: errors.length > 0 ? errors : undefined
         }
       });

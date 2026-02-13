@@ -7,6 +7,41 @@ const config = require('../config/config');
 const crypto = require('crypto');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
+// 允许的文件扩展名白名单
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
+
+/**
+ * 验证文件扩展名是否在白名单中
+ * @param {string} ext - 文件扩展名
+ * @param {string} type - 文件类型 ('image' 或 'video')
+ * @returns {boolean}
+ */
+function isExtensionAllowed(ext, type) {
+  const normalizedExt = ext.toLowerCase();
+  if (type === 'image') {
+    return ALLOWED_IMAGE_EXTENSIONS.includes(normalizedExt);
+  } else if (type === 'video') {
+    return ALLOWED_VIDEO_EXTENSIONS.includes(normalizedExt);
+  }
+  return false;
+}
+
+/**
+ * 获取安全的文件扩展名
+ * @param {string} filename - 原始文件名
+ * @param {string} type - 文件类型 ('image' 或 'video')
+ * @returns {string} - 安全的扩展名
+ */
+function getSafeExtension(filename, type) {
+  const ext = path.extname(filename).toLowerCase();
+  if (isExtensionAllowed(ext, type)) {
+    return ext;
+  }
+  // 如果扩展名不在白名单中，返回默认扩展名
+  return type === 'image' ? '.jpg' : '.mp4';
+}
+
 /**
  * 保存图片文件到本地
  * @param {Buffer} fileBuffer - 文件缓冲区
@@ -22,10 +57,10 @@ async function saveImageToLocal(fileBuffer, filename, req) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    // 生成唯一文件名
-    const ext = path.extname(filename);
+    // 生成唯一文件名 - 使用安全的扩展名
+    const safeExt = getSafeExtension(filename, 'image');
     const hash = crypto.createHash('md5').update(fileBuffer).digest('hex');
-    const uniqueFilename = `${Date.now()}_${hash}${ext}`;
+    const uniqueFilename = `${Date.now()}_${hash}${safeExt}`;
     const filePath = path.join(uploadDir, uniqueFilename);
 
     // 保存文件
@@ -62,10 +97,10 @@ async function saveVideoToLocal(fileBuffer, filename, req) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    // 生成唯一文件名
-    const ext = path.extname(filename);
+    // 生成唯一文件名 - 使用安全的扩展名
+    const safeExt = getSafeExtension(filename, 'video');
     const hash = crypto.createHash('md5').update(fileBuffer).digest('hex');
-    const uniqueFilename = `${Date.now()}_${hash}${ext}`;
+    const uniqueFilename = `${Date.now()}_${hash}${safeExt}`;
     const filePath = path.join(uploadDir, uniqueFilename);
 
     // 保存文件

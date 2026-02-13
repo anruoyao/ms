@@ -1067,6 +1067,9 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       await pool.execute('UPDATE tags SET use_count = GREATEST(use_count - 1, 0) WHERE id = ?', [tag.tag_id.toString()]);
     }
 
+    // 获取笔记关联的图片文件，用于清理
+    const [imageRows] = await pool.execute('SELECT image_url FROM post_images WHERE post_id = ?', [postId.toString()]);
+
     // 获取笔记关联的视频文件，用于清理
     const [videoRows] = await pool.execute('SELECT video_url, cover_url FROM post_videos WHERE post_id = ?', [postId.toString()]);
 
@@ -1079,11 +1082,21 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     await pool.execute('DELETE FROM comments WHERE post_id = ?', [postId.toString()]);
     await pool.execute('DELETE FROM notifications WHERE target_id = ?', [postId.toString()]);
 
+    // 清理关联的图片文件
+    if (imageRows.length > 0) {
+      const imageUrls = imageRows.map(row => row.image_url).filter(url => url);
+
+      // 异步清理文件，不阻塞响应
+      batchCleanupFiles([], imageUrls).catch(error => {
+        console.error('清理笔记关联图片文件失败:', error);
+      });
+    }
+
     // 清理关联的视频文件
     if (videoRows.length > 0) {
       const videoUrls = videoRows.map(row => row.video_url).filter(url => url);
       const coverUrls = videoRows.map(row => row.cover_url).filter(url => url);
-      
+
       // 异步清理文件，不阻塞响应
       batchCleanupFiles(videoUrls, coverUrls).catch(error => {
         console.error('清理笔记关联视频文件失败:', error);

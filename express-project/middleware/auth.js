@@ -120,7 +120,7 @@ async function adminAuth(req, res, next) {
 
     // 验证管理员是否存在
     const [adminRows] = await pool.execute(
-      'SELECT id, username, role FROM admin WHERE id = ?',
+      'SELECT id, username FROM admin WHERE id = ?',
       [decoded.adminId]
     );
 
