@@ -1,7 +1,6 @@
 /**
- * 小石榴校园图文社区 - 应用配置文件
  * 集中管理所有配置项
- * 
+ *
  * @author ZTMYO
  * @github https://github.com/ZTMYO
  * @description Express应用的核心配置管理
@@ -11,6 +10,20 @@
 const mysql = require('mysql2/promise');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+
+// 动态获取服务器基础URL
+// 优先使用环境变量，否则根据请求动态生成
+const getBaseUrl = (req) => {
+  if (process.env.LOCAL_BASE_URL) {
+    return process.env.LOCAL_BASE_URL;
+  }
+  if (req) {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3001';
+    return `${protocol}://${host}`;
+  }
+  return 'http://localhost:3001';
+};
 
 const config = {
   // 服务器配置
@@ -48,7 +61,7 @@ const config = {
       // 本地存储配置
       local: {
         uploadDir: process.env.IMAGE_LOCAL_UPLOAD_DIR || 'uploads/images',
-        baseUrl: process.env.LOCAL_BASE_URL || 'http://localhost:3001'
+        baseUrl: process.env.LOCAL_BASE_URL // 不再设置默认值，由 getBaseUrl 动态获取
       },
       // 第三方图床配置
       imagehost: {
@@ -75,7 +88,7 @@ const config = {
       // 本地存储配置
       local: {
         uploadDir: process.env.VIDEO_LOCAL_UPLOAD_DIR || 'uploads/videos',
-        baseUrl: process.env.LOCAL_BASE_URL || 'http://localhost:3001'
+        baseUrl: process.env.LOCAL_BASE_URL // 不再设置默认值，由 getBaseUrl 动态获取
       },
       // Cloudflare R2配置
       r2: {
@@ -92,7 +105,7 @@ const config = {
 
   // API配置
   api: {
-    baseUrl: process.env.API_BASE_URL || 'http://localhost:3001',
+    baseUrl: process.env.API_BASE_URL, // 不再设置默认值，由 getBaseUrl 动态获取
     timeout: 30000
   },
 
@@ -142,5 +155,6 @@ const pool = mysql.createPool(dbConfig);
 
 module.exports = {
   ...config,
-  pool
+  pool,
+  getBaseUrl // 导出动态获取URL的函数
 };

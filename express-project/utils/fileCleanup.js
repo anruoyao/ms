@@ -10,19 +10,22 @@ const config = require('../config/config');
 function extractLocalFilePath(url) {
   try {
     if (!url || typeof url !== 'string') return null;
-    
-    // 检查是否是本地文件URL
-    const baseUrl = config.upload.video.local.baseUrl;
+
+    // 检查是否是本地文件URL - 通过检查是否包含上传目录路径
     const uploadDir = config.upload.video.local.uploadDir;
-    
-    if (url.startsWith(baseUrl)) {
-      // 提取相对路径
-      const relativePath = url.replace(`${baseUrl}/`, '');
+
+    // 支持多种 baseUrl 格式的本地文件检测
+    // 1. 完整的 http(s)://domain/uploads/videos/... 格式
+    // 2. 相对路径 /uploads/videos/... 格式
+    if (url.includes(`/${uploadDir}/`)) {
+      // 提取相对路径（从 uploads 目录开始）
+      const uploadDirIndex = url.indexOf(`/${uploadDir}/`);
+      const relativePath = url.substring(uploadDirIndex + 1); // 去掉开头的 /
       // 构建绝对路径
       const absolutePath = path.join(process.cwd(), relativePath);
       return absolutePath;
     }
-    
+
     return null;
   } catch (error) {
     console.error(`❌ 提取文件路径失败: ${url}`, error.message);
@@ -79,7 +82,7 @@ async function cleanupVideoFiles(videoUrls) {
   for (const url of videoUrls) {
     try {
       const filePath = extractLocalFilePath(url);
-      
+
       if (filePath) {
         // 只处理本地文件
         const success = await deleteLocalFile(filePath);
@@ -101,7 +104,7 @@ async function cleanupVideoFiles(videoUrls) {
   }
 
 
-  
+
   return {
     success: failedCount === 0,
     deletedCount,
@@ -128,13 +131,15 @@ async function cleanupCoverFiles(coverUrls) {
     try {
       if (!url || typeof url !== 'string') continue;
 
-      // 检查是否是本地图片文件
-      const baseUrl = config.upload.image.local.baseUrl;
-      
-      if (url.startsWith(baseUrl)) {
-        const relativePath = url.replace(`${baseUrl}/`, '');
+      // 检查是否是本地图片文件 - 通过检查是否包含上传目录路径
+      const uploadDir = config.upload.image.local.uploadDir;
+
+      if (url.includes(`/${uploadDir}/`)) {
+        // 提取相对路径（从 uploads 目录开始）
+        const uploadDirIndex = url.indexOf(`/${uploadDir}/`);
+        const relativePath = url.substring(uploadDirIndex + 1); // 去掉开头的 /
         const absolutePath = path.join(process.cwd(), relativePath);
-        
+
         const success = await deleteLocalFile(absolutePath);
         if (success) {
           deletedCount++;
@@ -144,6 +149,7 @@ async function cleanupCoverFiles(coverUrls) {
         }
       } else {
         // 云端文件或其他类型的URL，跳过处理
+        console.log(`⏭️ 跳过非本地封面文件: ${url}`);
       }
     } catch (error) {
       failedCount++;
@@ -153,7 +159,7 @@ async function cleanupCoverFiles(coverUrls) {
   }
 
 
-  
+
   return {
     success: failedCount === 0,
     deletedCount,
@@ -176,7 +182,7 @@ async function batchCleanupFiles(videoUrls = [], coverUrls = []) {
     ]);
 
     const overallSuccess = videoResult.errors.length === 0 && coverResult.errors.length === 0;
-    
+
     return {
         success: overallSuccess,
         videoFiles: {

@@ -49,20 +49,20 @@ const mixedFileFilter = (req, file, cb) => {
       cb(new Error('只支持视频文件'), false);
     }
   } else if (file.fieldname === 'thumbnail') {
-    // 缩略图文件验证
+    // 缩略图文件验证（图片）
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
       cb(new Error('缩略图只支持图片文件'), false);
     }
   } else {
-    cb(new Error('不支持的文件字段'), false);
+    cb(new Error('未知的文件字段'), false);
   }
 };
 
 const videoUpload = multer({
   storage: storage,
-  fileFilter: mixedFileFilter, // 使用混合文件过滤器
+  fileFilter: mixedFileFilter,
   limits: {
     fileSize: 100 * 1024 * 1024 // 100MB 限制
   }
@@ -79,7 +79,8 @@ router.post('/single', authenticateToken, upload.single('file'), async (req, res
     const result = await uploadFile(
       req.file.buffer,
       req.file.originalname,
-      req.file.mimetype
+      req.file.mimetype,
+      req // 传入 req 用于动态获取 baseUrl
     );
 
     if (result.success) {
@@ -108,10 +109,10 @@ router.post('/single', authenticateToken, upload.single('file'), async (req, res
 router.post('/multiple', authenticateToken, upload.array('files', 9), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
-        success: false, 
-        data: null, 
-        message: '没有上传文件' 
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        success: false,
+        data: null,
+        message: '没有上传文件'
       });
     }
 
@@ -122,7 +123,8 @@ router.post('/multiple', authenticateToken, upload.array('files', 9), async (req
       const result = await uploadFile(
         file.buffer,
         file.originalname,
-        file.mimetype
+        file.mimetype,
+        req // 传入 req 用于动态获取 baseUrl
       );
 
       if (result.success) {
@@ -132,52 +134,51 @@ router.post('/multiple', authenticateToken, upload.array('files', 9), async (req
           url: result.url
         });
       } else {
-        errors.push({ file: file.originalname, error: result.message });
+        errors.push({
+          originalname: file.originalname,
+          message: result.message || '上传失败'
+        });
       }
     }
 
-    if (uploadResults.length === 0) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
-        success: false, 
-        data: null, 
-        message: '所有图片上传失败' 
+    // 记录用户批量上传操作日志
+    console.log(`多图片上传完成 - 用户ID: ${req.user.id}, 成功: ${uploadResults.length}, 失败: ${errors.length}`);
+
+    if (uploadResults.length > 0) {
+      res.json({
+        code: RESPONSE_CODES.SUCCESS,
+        message: `上传完成，成功 ${uploadResults.length} 个${errors.length > 0 ? `，失败 ${errors.length} 个` : ''}`,
+        data: {
+          success: uploadResults,
+          errors: errors.length > 0 ? errors : undefined
+        }
+      });
+    } else {
+      res.status(HTTP_STATUS.BAD_REQUEST).json({
+        code: RESPONSE_CODES.VALIDATION_ERROR,
+        message: '所有文件上传失败',
+        data: { errors }
       });
     }
-
-    // 记录用户上传操作日志
-    console.log(`多图片上传成功 - 用户ID: ${req.user.id}, 文件数量: ${uploadResults.length}`);
-
-    res.json({
-      success: true,
-      data: {
-        uploaded: uploadResults,
-        errors,
-        total: req.files.length,
-        successCount: uploadResults.length,
-        errorCount: errors.length
-      },
-      message: errors.length === 0 ? '所有图片上传成功' : `${uploadResults.length}张上传成功，${errors.length}张失败`
-    });
   } catch (error) {
     console.error('多图片上传失败:', error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
-      success: false, 
-      data: null, 
-      message: '上传失败' 
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      code: RESPONSE_CODES.ERROR,
+      message: '上传失败'
     });
   }
 });
 
-// 单视频上传到图床
+// 视频上传接口（支持本地存储和R2）
 router.post('/video', authenticateToken, videoUpload.fields([
   { name: 'file', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    if (!req.files || !req.files.file || !req.files.file[0]) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
-        code: RESPONSE_CODES.VALIDATION_ERROR, 
-        message: '没有上传视频文件' 
+    if (!req.files || !req.files.file || req.files.file.length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        code: RESPONSE_CODES.VALIDATION_ERROR,
+        message: '没有上传视频文件'
       });
     }
 
@@ -193,13 +194,14 @@ router.post('/video', authenticateToken, videoUpload.fields([
     const uploadResult = await uploadVideo(
       videoFile.buffer,
       videoFile.originalname,
-      videoFile.mimetype
+      videoFile.mimetype,
+      req // 传入 req 用于动态获取 baseUrl
     );
 
     if (!uploadResult.success) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
-        code: RESPONSE_CODES.VALIDATION_ERROR, 
-        message: uploadResult.message || '视频上传失败' 
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        code: RESPONSE_CODES.VALIDATION_ERROR,
+        message: uploadResult.message || '视频上传失败'
       });
     }
 
@@ -212,63 +214,42 @@ router.post('/video', authenticateToken, videoUpload.fields([
         const thumbnailUploadResult = await uploadFile(
           thumbnailFile.buffer,
           thumbnailFile.originalname,
-          thumbnailFile.mimetype
+          thumbnailFile.mimetype,
+          req // 传入 req 用于动态获取 baseUrl
         );
-        
+
         if (thumbnailUploadResult.success) {
           coverUrl = thumbnailUploadResult.url;
-          console.log('前端缩略图上传成功:', coverUrl);
+          console.log('缩略图上传成功:', coverUrl);
         } else {
-          console.warn('前端缩略图上传失败:', thumbnailUploadResult.message);
+          console.warn('缩略图上传失败:', thumbnailUploadResult.message);
         }
-      } catch (error) {
-        console.warn('前端缩略图处理失败:', error.message);
+      } catch (thumbnailError) {
+        console.warn('缩略图上传失败:', thumbnailError.message);
       }
     }
 
-
-    // 记录用户上传操作日志
-    console.log(`视频上传成功 - 用户ID: ${req.user.id}, 文件名: ${videoFile.originalname}, 缩略图: ${coverUrl ? '有' : '无'}`);
+    // 记录用户视频上传操作日志
+    console.log(`视频上传成功 - 用户ID: ${req.user.id}, 视频URL: ${uploadResult.url}, 封面URL: ${coverUrl || '无'}`);
 
     res.json({
       code: RESPONSE_CODES.SUCCESS,
-      message: '上传成功',
+      message: '视频上传成功',
       data: {
         originalname: videoFile.originalname,
         size: videoFile.size,
         url: uploadResult.url,
-        filePath: uploadResult.filePath,
-        coverUrl: coverUrl
+        coverUrl: coverUrl,
+        mimetype: videoFile.mimetype
       }
     });
   } catch (error) {
     console.error('视频上传失败:', error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
-      code: RESPONSE_CODES.ERROR, 
-      message: '上传失败' 
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      code: RESPONSE_CODES.ERROR,
+      message: '视频上传失败'
     });
   }
-});
-
-// 注意：使用云端图床后，文件删除由图床服务商管理
-
-// 错误处理中间件
-router.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({ code: RESPONSE_CODES.VALIDATION_ERROR, message: '文件大小超过限制（5MB）' });
-    }
-    if (error.code === 'LIMIT_FILE_COUNT') {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({ code: RESPONSE_CODES.VALIDATION_ERROR, message: '文件数量超过限制（9个）' });
-    }
-  }
-
-  if (error.message === '只允许上传图片文件' || error.message === '只允许上传视频文件') {
-    return res.status(HTTP_STATUS.BAD_REQUEST).json({ code: RESPONSE_CODES.VALIDATION_ERROR, message: error.message });
-  }
-
-  console.error('文件上传错误:', error);
-  res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ code: RESPONSE_CODES.ERROR, message: '文件上传失败' });
 });
 
 module.exports = router;
