@@ -94,6 +94,62 @@ async function authenticateToken(req, res, next) {
 }
 
 /**
+ * 管理员认证中间件 - 只验证管理员token
+ */
+async function adminAuth(req, res, next) {
+  try {
+    const token = extractTokenFromHeader(req);
+
+    if (!token) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        code: RESPONSE_CODES.UNAUTHORIZED,
+        message: '管理员访问令牌缺失'
+      });
+    }
+
+    // 验证token
+    const decoded = verifyToken(token);
+
+    // 检查是否为管理员token
+    if (decoded.type !== 'admin') {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        code: RESPONSE_CODES.FORBIDDEN,
+        message: '需要管理员权限'
+      });
+    }
+
+    // 验证管理员是否存在
+    const [adminRows] = await pool.execute(
+      'SELECT id, username, role FROM admin WHERE id = ?',
+      [decoded.adminId]
+    );
+
+    if (adminRows.length === 0) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        code: RESPONSE_CODES.UNAUTHORIZED,
+        message: '管理员不存在'
+      });
+    }
+
+    // 将管理员信息添加到请求对象
+    req.user = {
+      ...adminRows[0],
+      type: 'admin',
+      adminId: decoded.adminId
+    };
+    req.token = token;
+
+    next();
+  } catch (error) {
+    console.error('管理员Token验证失败:', error);
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      code: RESPONSE_CODES.UNAUTHORIZED,
+      message: '无效的管理员访问令牌'
+    });
+  }
+}
+
+/**
  * 可选认证中间件 - 如果有token则验证，没有则跳过
  */
 async function optionalAuth(req, res, next) {
@@ -141,5 +197,6 @@ async function optionalAuth(req, res, next) {
 
 module.exports = {
   authenticateToken,
+  adminAuth,
   optionalAuth
 };
