@@ -53,8 +53,23 @@ async function saveImageToLocal(fileBuffer, filename, req) {
   try {
     // 确保上传目录存在
     const uploadDir = path.join(process.cwd(), config.upload.image.local.uploadDir);
+    console.log('📁 图片上传目录:', uploadDir);
+
     if (!fs.existsSync(uploadDir)) {
+      console.log('📁 创建图片上传目录...');
       fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // 检查目录写入权限
+    try {
+      fs.accessSync(uploadDir, fs.constants.W_OK);
+      console.log('✅ 图片目录写入权限正常');
+    } catch (permError) {
+      console.error('❌ 图片目录无写入权限:', uploadDir);
+      return {
+        success: false,
+        message: `图片目录无写入权限: ${uploadDir}`
+      };
     }
 
     // 生成唯一文件名 - 使用安全的扩展名
@@ -63,8 +78,23 @@ async function saveImageToLocal(fileBuffer, filename, req) {
     const uniqueFilename = `${Date.now()}_${hash}${safeExt}`;
     const filePath = path.join(uploadDir, uniqueFilename);
 
+    console.log('💾 保存图片文件:', filePath);
+    console.log('📊 文件大小:', (fileBuffer.length / 1024).toFixed(2), 'KB');
+
     // 保存文件
     fs.writeFileSync(filePath, fileBuffer);
+
+    // 验证文件是否成功写入
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ 文件写入后不存在:', filePath);
+      return {
+        success: false,
+        message: '文件写入失败，文件不存在'
+      };
+    }
+
+    const stats = fs.statSync(filePath);
+    console.log('✅ 图片文件保存成功:', filePath, '大小:', (stats.size / 1024).toFixed(2), 'KB');
 
     // 返回访问URL - 使用动态获取的baseUrl
     const baseUrl = config.getBaseUrl(req);
@@ -75,6 +105,7 @@ async function saveImageToLocal(fileBuffer, filename, req) {
     };
   } catch (error) {
     console.error('❌ 图片本地保存失败:', error.message);
+    console.error('错误堆栈:', error.stack);
     return {
       success: false,
       message: error.message || '图片本地保存失败'
@@ -93,8 +124,23 @@ async function saveVideoToLocal(fileBuffer, filename, req) {
   try {
     // 确保上传目录存在
     const uploadDir = path.join(process.cwd(), config.upload.video.local.uploadDir);
+    console.log('📁 视频上传目录:', uploadDir);
+
     if (!fs.existsSync(uploadDir)) {
+      console.log('📁 创建视频上传目录...');
       fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // 检查目录写入权限
+    try {
+      fs.accessSync(uploadDir, fs.constants.W_OK);
+      console.log('✅ 视频目录写入权限正常');
+    } catch (permError) {
+      console.error('❌ 视频目录无写入权限:', uploadDir);
+      return {
+        success: false,
+        message: `视频目录无写入权限: ${uploadDir}`
+      };
     }
 
     // 生成唯一文件名 - 使用安全的扩展名
@@ -103,8 +149,23 @@ async function saveVideoToLocal(fileBuffer, filename, req) {
     const uniqueFilename = `${Date.now()}_${hash}${safeExt}`;
     const filePath = path.join(uploadDir, uniqueFilename);
 
+    console.log('💾 保存视频文件:', filePath);
+    console.log('📊 文件大小:', (fileBuffer.length / 1024 / 1024).toFixed(2), 'MB');
+
     // 保存文件
     fs.writeFileSync(filePath, fileBuffer);
+
+    // 验证文件是否成功写入
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ 文件写入后不存在:', filePath);
+      return {
+        success: false,
+        message: '文件写入失败，文件不存在'
+      };
+    }
+
+    const stats = fs.statSync(filePath);
+    console.log('✅ 视频文件保存成功:', filePath, '大小:', (stats.size / 1024 / 1024).toFixed(2), 'MB');
 
     // 返回访问URL和文件路径 - 使用动态获取的baseUrl
     const baseUrl = config.getBaseUrl(req);
@@ -116,6 +177,7 @@ async function saveVideoToLocal(fileBuffer, filename, req) {
     };
   } catch (error) {
     console.error('❌ 视频本地保存失败:', error.message);
+    console.error('错误堆栈:', error.stack);
     return {
       success: false,
       message: error.message || '视频本地保存失败'
