@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
 
+// 项目根目录 - 使用 __dirname 确保路径正确
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
 /**
  * 从URL中提取本地文件路径
  * @param {string} url - 视频文件URL
@@ -21,8 +24,8 @@ function extractLocalFilePath(url) {
       // 提取相对路径（从 uploads 目录开始）
       const uploadDirIndex = url.indexOf(`/${uploadDir}/`);
       const relativePath = url.substring(uploadDirIndex + 1); // 去掉开头的 /
-      // 构建绝对路径
-      const absolutePath = path.join(process.cwd(), relativePath);
+      // 构建绝对路径 - 使用 PROJECT_ROOT 确保路径正确
+      const absolutePath = path.join(PROJECT_ROOT, relativePath);
       return absolutePath;
     }
 
@@ -46,10 +49,11 @@ async function deleteLocalFile(filePath) {
     }
 
     // 安全检查：确保文件路径在项目目录内
-    const projectRoot = process.cwd();
     const resolvedPath = path.resolve(filePath);
-    if (!resolvedPath.startsWith(projectRoot)) {
+    if (!resolvedPath.startsWith(PROJECT_ROOT)) {
       console.error(`❌ 安全检查失败，文件路径超出项目范围: ${filePath}`);
+      console.error(`   项目根目录: ${PROJECT_ROOT}`);
+      console.error(`   文件路径: ${resolvedPath}`);
       return false;
     }
 
@@ -138,7 +142,8 @@ async function cleanupCoverFiles(coverUrls) {
         // 提取相对路径（从 uploads 目录开始）
         const uploadDirIndex = url.indexOf(`/${uploadDir}/`);
         const relativePath = url.substring(uploadDirIndex + 1); // 去掉开头的 /
-        const absolutePath = path.join(process.cwd(), relativePath);
+        // 构建绝对路径 - 使用 PROJECT_ROOT 确保路径正确
+        const absolutePath = path.join(PROJECT_ROOT, relativePath);
 
         const success = await deleteLocalFile(absolutePath);
         if (success) {

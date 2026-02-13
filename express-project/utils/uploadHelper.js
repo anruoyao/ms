@@ -51,9 +51,11 @@ function getSafeExtension(filename, type) {
  */
 async function saveImageToLocal(fileBuffer, filename, req) {
   try {
-    // 确保上传目录存在
-    const uploadDir = path.join(process.cwd(), config.upload.image.local.uploadDir);
+    // 确保上传目录存在 - 使用 __dirname 确保路径正确
+    const projectRoot = path.resolve(__dirname, '..');
+    const uploadDir = path.join(projectRoot, config.upload.image.local.uploadDir);
     console.log('📁 图片上传目录:', uploadDir);
+    console.log('📁 项目根目录:', projectRoot);
 
     if (!fs.existsSync(uploadDir)) {
       console.log('📁 创建图片上传目录...');
@@ -122,9 +124,11 @@ async function saveImageToLocal(fileBuffer, filename, req) {
  */
 async function saveVideoToLocal(fileBuffer, filename, req) {
   try {
-    // 确保上传目录存在
-    const uploadDir = path.join(process.cwd(), config.upload.video.local.uploadDir);
+    // 确保上传目录存在 - 使用 __dirname 确保路径正确
+    const projectRoot = path.resolve(__dirname, '..');
+    const uploadDir = path.join(projectRoot, config.upload.video.local.uploadDir);
     console.log('📁 视频上传目录:', uploadDir);
+    console.log('📁 项目根目录:', projectRoot);
 
     if (!fs.existsSync(uploadDir)) {
       console.log('📁 创建视频上传目录...');
